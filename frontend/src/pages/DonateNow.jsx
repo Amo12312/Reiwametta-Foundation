@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 const amountOptions = [100, 250, 500, 1000, 2000];
 // Use Vite env var VITE_API_URL for API base, fallback to localhost:8080 for local backend
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE = (import.meta.env.VITE_API_URL || 'https://reiwametta-foundation.vercel.app').replace(/\/$/, '');
 
 const DonateNow = () => {
   const [selectedAmount, setSelectedAmount] = useState(null);
@@ -114,6 +114,8 @@ const DonateNow = () => {
           address: formData.address,
           pincode: formData.pincode,
           message: formData.message + (autoPay ? " (Monthly Recurring)" : ""),
+          isRecurring: autoPay,
+          subscriptionId: autoPay ? subscriptionId : null
         });
       },
       prefill: {

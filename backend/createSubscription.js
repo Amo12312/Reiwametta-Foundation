@@ -62,8 +62,12 @@ app.use(cors({
   origin: [
     'http://localhost:5173',
     'https://reiwametta-foundation-frontend.vercel.app',
+    'https://reiwametta-foundation.vercel.app'
   ],
-  credentials: true 
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
+  maxAge: 600 // Cache preflight request results for 10 minutes
 }));
 
 // Use express.json() instead of bodyParser
