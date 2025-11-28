@@ -39,7 +39,7 @@ const Contribute = () => {
                                 special needs—an investment in the leaders of tomorrow.
                             </p>
 
-                            <Link to="/donateNow">
+                            <Link to="/donatenow">
                                 <button className="bg-yellow-500 text-white px-4 py-2 rounded cursor-pointer  transition-colors">
                                     Donate Now
                                 </button>

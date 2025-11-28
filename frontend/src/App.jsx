@@ -33,6 +33,8 @@ const App = () => {
         <Route path="/eventSubPage/:id" element={<EventSubPage />} />
         <Route path="/donatenow" element={<DonateNow />} />
         <Route path="/donateNow" element={<DonateNow />} />
+        <Route path="/donate-now" element={<DonateNow />} />
+        <Route path="*" element={<Home />} />
       </Routes>
       <Footer />
     </>

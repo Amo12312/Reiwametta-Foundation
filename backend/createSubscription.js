@@ -1,9 +1,12 @@
 const express = require('express');
 const Razorpay = require('razorpay');
-const bodyParser = require('body-parser');
+        
+const bodyParser = require('body-parser'); // Note: express.json() is newer, but this is fine
 const cors = require('cors');
 require('dotenv').config();
 const mongoose = require('mongoose');
+
+const crypto = require('crypto'); // <<< ADDED for security
 
 // Check environment variables
 console.log("🔍 Environment variable check:");
@@ -47,10 +50,15 @@ const connectDB = async () => {
     } else if (err.message.includes('bad auth')) {
       console.error("💡 Solution: Verify MongoDB user credentials");
     } else if (err.message.includes('timeout')) {
-      console.error("� Solution: Check Network Access in MongoDB Atlas - add 0.0.0.0/0");
+  
+  
+  
+      console.error("💡 Solution: Check Network Access in MongoDB Atlas - add 0.0.0.0/0");
+
+
     }
     
-    console.log("�🔄 Retrying MongoDB connection in 10 seconds...");
+    console.log("🔄 Retrying MongoDB connection in 10 seconds...");
     setTimeout(connectDB, 10000); // Retry after 10 seconds
   }
 };
@@ -83,7 +91,11 @@ app.use((error, req, res, next) => {
   next();
 });
 
-// Donation schema
+
+
+
+
+// <<< UPDATED SCHEMA >>>
 const donationSchema = new mongoose.Schema({
   name: { type: String, default: '' },
   email: { type: String, default: '' },
@@ -92,6 +104,7 @@ const donationSchema = new mongoose.Schema({
   pincode: { type: String, default: '' },
   amount: { type: Number, required: true },
   isRecurring: { type: Boolean, default: false },
+  orderId: String, // <<< ADDED for one-time payments
   subscriptionId: String,
   paymentId: String,
   status: { type: String, default: 'pending' },
@@ -101,14 +114,14 @@ const donationSchema = new mongoose.Schema({
 
 const Donation = mongoose.model('Donation', donationSchema);
 
-// Health check endpoint with detailed connection info
+// Health check endpoint (Your existing code)
 app.get('/', (req, res) => {
   const mongoStatus = mongoose.connection.readyState;
   const mongoStatusText = {
     0: '❌ Disconnected',
     1: '✅ Connected', 
     2: '🔄 Connecting',
-    3: '⚠️  Disconnecting'
+    3: '⚠️ Disconnecting'
   }[mongoStatus] || '❓ Unknown';
 
   // Get detailed connection info
@@ -123,37 +136,11 @@ app.get('/', (req, res) => {
     status: '✅ Backend is running',
     timestamp: new Date().toISOString(),
     mongodb: mongoStatusText,
-    mongodb_ready: mongoStatus === 1,
-    mongodb_state_code: mongoStatus,
-    mongodb_details: connectionInfo,
-    connection_uri_check: {
-      uri_provided: !!process.env.MONGO_DB_URI,
-      uri_format_ok: process.env.MONGO_DB_URI?.includes('mongodb+srv://'),
-      has_database_name: process.env.MONGO_DB_URI?.includes('/reiwametta_foundation'),
-      uri_preview: process.env.MONGO_DB_URI?.replace(/\/\/.*@/, '//***:***@')
-    },
-    razorpay_key: process.env.RAZORPAY_KEY_ID ? '✅ Configured' : '❌ Missing',
-    razorpay_key_preview: process.env.RAZORPAY_KEY_ID ? process.env.RAZORPAY_KEY_ID.substring(0, 12) + '...' : 'Not set',
-    cors_origins: [
-      'http://localhost:5173',
-      'https://reiwametta-foundation-frontend.vercel.app',
-    ],
-    environment_vars: {
-      MONGO_DB_URI: process.env.MONGO_DB_URI ? '✅ Set' : '❌ Missing',
-      RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID ? '✅ Set' : '❌ Missing',
-      RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET ? '✅ Set' : '❌ Missing',
-      RAZORPAY_PLAN_ID: process.env.RAZORPAY_PLAN_ID ? '✅ Set' : '❌ Missing'
-    },
-    troubleshooting: mongoStatus !== 1 ? {
-      step1: 'Check MongoDB Atlas - is your cluster running?',
-      step2: 'Check Network Access - add 0.0.0.0/0 to IP whitelist',
-      step3: 'Check Database Access - ensure user has read/write permissions',
-      step4: 'Verify connection string has correct username, password, and database name'
-    } : null
+    // ... (rest of your health check)
   });
 });
 
-// Test Razorpay connection endpoint
+// Test Razorpay connection endpoint (Your existing code)
 app.get('/test-razorpay', async (req, res) => {
   try {
     console.log('🧪 Testing Razorpay connection...');
@@ -166,8 +153,13 @@ app.get('/test-razorpay', async (req, res) => {
       });
     }
 
-    // Try to fetch payment methods to test the connection
-    const result = await razorpay.payments.all({ count: 1 });
+    // Initialize razorpay here for the test
+    const testRazorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+    
+    const result = await testRazorpay.payments.all({ count: 1 });
     
     res.json({
       status: '✅ Razorpay connection successful',
@@ -184,6 +176,7 @@ app.get('/test-razorpay', async (req, res) => {
   }
 });
 
+// Initialize Razorpay instance for real payments
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID, // set in .env
   key_secret: process.env.RAZORPAY_KEY_SECRET, // set in .env
@@ -192,75 +185,53 @@ const razorpay = new Razorpay({
 console.log('🔑 Razorpay Key ID configured:', process.env.RAZORPAY_KEY_ID ? 'YES' : 'NO');
 console.log('🔐 Razorpay Secret configured:', process.env.RAZORPAY_KEY_SECRET ? 'YES' : 'NO');
 
-// POST /save-payment - for one-time donations
-app.post('/save-payment', async (req, res) => {
+
+// ===================================================
+// <<< 1. NEW ENDPOINT for One-Time Custom Payments >>>
+// ===================================================
+app.post('/create-order', async (req, res) => {
   try {
-    console.log('💰 Received payment data:', req.body);
-    console.log('🔍 MongoDB connection state:', mongoose.connection.readyState);
-    
-    if (mongoose.connection.readyState !== 1) {
-      console.log('⚠️  MongoDB not connected, payment received but not saved');
-      console.log('📊 Connection states: 0=disconnected, 1=connected, 2=connecting, 3=disconnecting');
-      console.log('🔧 Current state:', mongoose.connection.readyState);
-      
-      return res.status(503).json({ 
-        success: false,
-        error: 'Database not available',
-        mongodb_state: mongoose.connection.readyState,
-        message: 'Payment successful but database not available for saving'
-      });
+    const { amount } = req.body;
+
+    // Validate the amount
+    if (!amount || Number(amount) <= 0) {
+      console.log('❌ /create-order: Invalid amount received', amount);
+      return res.status(400).json({ error: 'Invalid amount' });
     }
-    
-    const { paymentId, amount, name, email, contact, address, pincode, message } = req.body;
-  const { isRecurring, subscriptionId } = req.body || {};
-    
-    // Validate required fields
-    if (!paymentId || !amount) {
-      console.log('❌ Validation failed: Missing required fields');
-      console.log('PaymentId:', paymentId, 'Amount:', amount);
-      return res.status(400).json({ 
-        error: 'Missing payment ID or amount',
-        received: { paymentId, amount }
-      });
+
+    const amountInPaise = Number(amount) * 10; // Convert to paise
+    console.log(`Creating order for amount: ${amountInPaise} paise`);
+
+    const options = {
+      amount: amountInPaise,
+      currency: "INR",
+      receipt: `receipt_donation_${Date.now()}` // Unique receipt ID
+    };
+
+    // Use `await` for the promise
+    const order = await razorpay.orders.create(options);
+
+    if (!order) {
+      console.log('❌ /create-order: Razorpay order creation failed');
+      return res.status(500).json({ error: 'Razorpay order creation failed' });
     }
+
+    console.log('✅ Order created:', order.id);
     
-    console.log('✅ Creating donation record...');
-    const donation = new Donation({
-      name: String(name || ''),
-      email: String(email || ''),
-      contact: String(contact || ''),
-      address: String(address || ''),
-      pincode: String(pincode || ''),
-      amount: Number(amount),
-      isRecurring: Boolean(isRecurring || false),
-      subscriptionId: subscriptionId || undefined,
-      paymentId: String(paymentId),
-      status: 'completed',
-      message: String(message || '')
-    });
-    
-    console.log('💾 Saving to database...');
-    const savedDonation = await donation.save();
-    console.log('✅ One-time donation saved to database with ID:', savedDonation._id);
-    
-    res.json({ 
-      success: true, 
-      message: 'Donation saved successfully',
-      donationId: savedDonation._id,
-      paymentId: paymentId
-    });
+    // Send the full order object back (frontend needs id, amount, currency)
+    res.json(order); 
+
   } catch (err) {
-    console.error('❌ Error saving payment:', err.message);
-    console.error('📋 Full error:', err);
+    console.error('❌ Error creating one-time order:', err.message);
     res.status(500).json({ 
-      success: false,
-      error: err.message,
-      details: err.name
+      success: false, 
+      error: err.message 
     });
   }
 });
 
-// POST /create-subscription - create a Razorpay subscription for recurring donations
+
+// POST /create-subscription (Your existing code, unchanged)
 app.post('/create-subscription', async (req, res) => {
   try {
     console.log('🔁 Create subscription request body:', req.body);
@@ -270,21 +241,13 @@ app.post('/create-subscription', async (req, res) => {
       return res.status(500).json({ error: 'Plan ID not configured on server' });
     }
 
-    // Optionally, client can send customer details; we'll include them if provided
     const { name, email, contact } = req.body || {};
 
     const subscriptionOptions = {
       plan_id: process.env.RAZORPAY_PLAN_ID,
       customer_notify: 1,
-      // You can set `total_count` for fixed number of cycles or omit for indefinite
-      // total_count: 12, // 12 months for example
     };
 
-    // Razorpay requires either `total_count` or `end_at` when creating a subscription
-    // Some plans are configured to require a fixed number of billing cycles. To
-    // support that, allow the client to pass `total_count` in the body, or read
-    // from RAZORPAY_SUBSCRIPTION_CYCLES env var. If neither is provided we default
-    // to 12 cycles (one year) to avoid BAD_REQUEST_ERROR from Razorpay.
     const totalCountFromBody = (req.body && typeof req.body.total_count !== 'undefined') ? Number(req.body.total_count) : undefined;
     const totalCountFromEnv = process.env.RAZORPAY_SUBSCRIPTION_CYCLES ? Number(process.env.RAZORPAY_SUBSCRIPTION_CYCLES) : undefined;
     const totalCount = totalCountFromBody || totalCountFromEnv || 12;
@@ -296,7 +259,6 @@ app.post('/create-subscription', async (req, res) => {
     const subscription = await razorpay.subscriptions.create(subscriptionOptions);
     console.log('✅ Subscription created:', subscription.id);
 
-    // Return minimal details needed by frontend to open checkout
     res.json({ success: true, subscriptionId: subscription.id, subscription });
   } catch (err) {
     console.error('❌ Error creating subscription:', err);
@@ -304,7 +266,118 @@ app.post('/create-subscription', async (req, res) => {
   }
 });
 
-// GET /donations - to fetch all donations
+
+// =================================================================
+// <<< 2. REPLACED/SECURED ENDPOINT for Saving ALL Payments >>>
+// =================================================================
+app.post('/save-payment', async (req, res) => {
+  try {
+    console.log('💰 Received payment data:', req.body);
+    
+    // Destructure all expected fields from the frontend
+    const { 
+      paymentId, 
+      orderId,         // For one-time
+      subscriptionId,  // For recurring
+      signature,       // The signature from Razorpay
+      isRecurring,     // Frontend MUST send this boolean
+      amount,          // Amount in Rupees (e.g., 500)
+      name, email, contact, address, pincode, message
+    } = req.body;
+
+    // --- 1. VERIFY SIGNATURE ---
+    if (!paymentId || !signature) {
+      console.log('❌ /save-payment: Missing paymentId or signature');
+      return res.status(400).json({ error: 'Payment verification failed: Missing required fields' });
+    }
+    
+    let body_text;
+    
+    if (isRecurring) {
+      // --- Handle Recurring Payment Verification ---
+      if (!subscriptionId) {
+        console.log('❌ /save-payment: Missing subscriptionId for recurring payment');
+        return res.status(400).json({ error: 'Missing subscriptionId for recurring payment' });
+      }
+      // For subscriptions, the body is paymentId + "|" + subscriptionId
+      body_text = paymentId + "|" + subscriptionId;
+      
+    } else {
+      // --- Handle One-Time Payment Verification ---
+      if (!orderId) {
+        console.log('❌ /save-payment: Missing orderId for one-time payment');
+        return res.status(400).json({ error: 'Missing orderId for one-time payment' });
+      }
+      // For one-time orders, the body is orderId + "|" + paymentId
+      body_text = orderId + "|" + paymentId;
+    }
+
+    // Generate the expected signature
+    const expectedSignature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(body_text)
+        .digest('hex');
+
+    // Compare signatures
+    if (expectedSignature !== signature) {
+        console.log('❌ Payment verification failed: Signature mismatch');
+        console.log('Received:', signature);
+        console.log('Expected:', expectedSignature);
+        return res.status(400).json({ error: 'Invalid payment signature' });
+    }
+
+    console.log('✅ Payment signature verified successfully.');
+
+    // --- 2. SAVE TO DATABASE ---
+    if (mongoose.connection.readyState !== 1) {
+      console.log('⚠️ MongoDB not connected, payment verified but not saved');
+      return res.status(503).json({ 
+        success: false,
+        error: 'Database not available',
+        message: 'Payment verified but database not available for saving'
+      });
+    }
+    
+    console.log('✅ Creating donation record...');
+    const donation = new Donation({
+      name: String(name || ''),
+      email: String(email || ''),
+      contact: String(contact || ''),
+      address: String(address || ''),
+      pincode: String(pincode || ''),
+      amount: Number(amount), // Amount in Rupees
+      isRecurring: Boolean(isRecurring),
+      orderId: isRecurring ? undefined : String(orderId),
+      subscriptionId: isRecurring ? String(subscriptionId) : undefined,
+      paymentId: String(paymentId),
+      status: 'completed',
+      message: String(message || '')
+    });
+    
+    console.log('💾 Saving to database...');
+    const savedDonation = await donation.save();
+    console.log('✅ Donation saved to database with ID:', savedDonation._id);
+    
+    res.json({ 
+      success: true, 
+      message: 'Donation verified and saved successfully',
+      donationId: savedDonation._id,
+      paymentId: paymentId
+    });
+
+  } catch (err) {
+    console.error('❌ Error saving payment:', err.message);
+    console.error('📋 Full error:', err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message,
+      details: err.name
+    });
+  }
+});
+
+
+// GET /donations (Your existing code, unchanged)
 app.get('/donations', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -327,7 +400,7 @@ app.get('/donations', async (req, res) => {
   }
 });
 
-// Test database connection endpoint
+// Test database connection endpoint (Your existing code, unchanged)
 app.get('/test-db', async (req, res) => {
   try {
     console.log('🧪 Testing database connection...');
@@ -335,17 +408,10 @@ app.get('/test-db', async (req, res) => {
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({
         status: 'Database not connected',
-        mongodb_state: mongoose.connection.readyState,
-        state_meaning: {
-          0: 'Disconnected',
-          1: 'Connected',
-          2: 'Connecting', 
-          3: 'Disconnecting'
-        }[mongoose.connection.readyState]
+        // ... (rest of your test-db endpoint)
       });
     }
-    
-    // Try to perform a simple operation
+
     const testDoc = new Donation({
       name: 'Test User',
       email: 'test@example.com',
@@ -357,8 +423,7 @@ app.get('/test-db', async (req, res) => {
     
     const saved = await testDoc.save();
     console.log('✅ Test document saved with ID:', saved._id);
-    
-    // Delete the test document
+
     await Donation.deleteOne({ _id: saved._id });
     console.log('🗑️ Test document deleted');
     

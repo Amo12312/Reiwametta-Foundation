@@ -93,6 +93,14 @@ const Footer = () => {
         >
           ↑ Back to Top
         </button>
+
+      </div>
+      {/* Copyright / credit line */}
+      <div className="text-center text-sm text-gray-200 mt-2">
+        © copyright 2025 Design and Developed with love by{' '}
+        <a href="https://tars.co.in" className="underline hover:text-yellow-300">
+          TARS TECHNOLOGIES
+        </a>
       </div>
     </footer>
   );

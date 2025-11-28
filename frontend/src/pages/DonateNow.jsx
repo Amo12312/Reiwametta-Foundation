@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 
 const amountOptions = [100, 250, 500, 1000, 2000];
-// Use Vite env var VITE_API_URL for API base, fallback to localhost:8080 for local backend
-const API_BASE = (import.meta.env.VITE_API_URL || 'https://reiwametta-foundation.vercel.app').replace(/\/$/, '');
+
+const API_BASE = (import.meta.env.VITE_API_URL || 'https://reiwamettafoundations.org').replace(/\/$/, '');
 
 const DonateNow = () => {
   const [selectedAmount, setSelectedAmount] = useState(null);
@@ -17,7 +17,9 @@ const DonateNow = () => {
     pincode: '',
     message: '',
   });
-  const [subscriptionId, setSubscriptionId] = useState(null);
+  // Note: We don't need to store subscriptionId in state anymore, 
+
+  // as the handler provides it.
 
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
@@ -29,50 +31,65 @@ const DonateNow = () => {
     });
   };
 
-  // Function to save payment data to database
+  // =================================================================
+  // <<< 1. UPDATED savePaymentToDatabase >>>
+  // Now sends all required fields for secure verification
+
+  // =================================================================
   const savePaymentToDatabase = async (paymentData) => {
     try {
-      console.log('💾 Saving payment data:', paymentData); // Debug log
-      
-      // Clean and validate data before sending
-      const cleanData = {
-        paymentId: String(paymentData.paymentId || ''),
-        amount: Number(paymentData.amount) || 0,
+      console.log('💾 Saving payment data:', paymentData);
+
+      // Build the exact payload your secure backend expects
+      const dataToSend = {
+
+        // User details
         name: String(paymentData.name || ''),
         email: String(paymentData.email || ''),
         contact: String(paymentData.contact || ''),
         address: String(paymentData.address || ''),
         pincode: String(paymentData.pincode || ''),
-        message: String(paymentData.message || '')
-        , isRecurring: Boolean(paymentData.isRecurring || false)
-        , subscriptionId: paymentData.subscriptionId || null
+        message: String(paymentData.message || ''),
+        
+        // Payment details
+        amount: Number(paymentData.amount) || 0, // Amount in Rupees
+        isRecurring: Boolean(paymentData.isRecurring || false),
+
+        // VERIFICATION details
+        paymentId: String(paymentData.paymentId || ''),
+        signature: String(paymentData.signature || ''),
+        orderId: paymentData.orderId || null,
+
+        subscriptionId: paymentData.subscriptionId || null
       };
       
-      console.log('📤 Clean data to send:', cleanData);
+      console.log('📤 Clean data to send for verification:', dataToSend);
       
-  // Use configured API base or fallback to http://localhost:8080
-  // e.g. set VITE_API_URL to production backend URL in .env
-  const response = await fetch(`${API_BASE}/save-payment`, {
+
+      const response = await fetch(`${API_BASE}/save-payment`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
           "Accept": "application/json"
         },
-        body: JSON.stringify(cleanData),
+
+        body: JSON.stringify(dataToSend),
       });
       
       console.log('📡 Response status:', response.status);
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Server response error:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+        const errorData = await response.json();
+        console.error('❌ Server response error:', errorData);
+
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || 'Unknown error'}`);
       }
       
       const result = await response.json();
       console.log('✅ Payment saved to database:', result);
       
-        if (result.success) {
+
+      if (result.success) {
         alert('✅ Payment data saved successfully!');
         console.log('💰 Donation ID:', result.donationId);
       } else {
@@ -85,55 +102,43 @@ const DonateNow = () => {
     }
   };
 
+
+  // =================================================================
+  // <<< 2. UPDATED handlePayment >>>
+  // Now has two separate flows: one-time (order) and recurring (subscription)
+
+  // =================================================================
   const handlePayment = async () => {
+    // Enforce minimum amount
+    const amountNumber = Number(selectedAmount);
+    if (!amountNumber || amountNumber < 10) {
+      alert('Minimum donation amount is ₹10.');
+      return;
+    }
+    console.log('💵 Initiating payment for amount:', amountNumber, 'Recurring:', autoPay);
     const res = await loadRazorpayScript();
     if (!res) {
       alert("Razorpay SDK failed to load. Check your internet connection.");
       return;
     }
+    
+    // --- PAYMENT LOGIC SPLIT ---
 
-    let options = {
-      key: "rzp_live_VmUHSwmTktjf2l", // Live Razorpay key
-      // For subscriptions, we'll set subscription_id instead of amount
-      amount: autoPay ? undefined : selectedAmount * 100,
-      currency: "INR",
-      name: "Reiwametta Foundation",
-      description: autoPay ? "Monthly Recurring Donation" : "Donation",
-      image: "/logo.png", // Path to your logo in public folder
-      handler: async function (response) {
-        // response.razorpay_payment_id is available for payment events
-        alert((autoPay ? 'Monthly' : 'Payment') + " successful! Payment ID: " + response.razorpay_payment_id);
-
-        // Save payment (recurring or one-time) to database for our records
-        await savePaymentToDatabase({
-          paymentId: response.razorpay_payment_id,
-          amount: selectedAmount,
-          name: formData.name,
-          email: formData.email,
-          contact: formData.contact,
-          address: formData.address,
-          pincode: formData.pincode,
-          message: formData.message + (autoPay ? " (Monthly Recurring)" : ""),
-          isRecurring: autoPay,
-          subscriptionId: autoPay ? subscriptionId : null
-        });
-      },
-      prefill: {
-        name: formData.name,
-        email: formData.email,
-        contact: formData.contact,
-      },
-      theme: {
-        color: "#EAB308",
-      },
-    };
-    // If autoPay (recurring) is requested, create a subscription on the server first
     if (autoPay) {
+      // --- FLOW 1: RECURRING (SUBSCRIPTION) ---
+      // This will show the ₹1 mandate
+      
+      let subscriptionId;
       try {
+        console.log('Creating subscription...');
         const subRes = await fetch(`${API_BASE}/create-subscription`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: formData.name, email: formData.email, contact: formData.contact })
+          body: JSON.stringify({ 
+            name: formData.name, 
+            email: formData.email, 
+            contact: formData.contact 
+          })
         });
 
         if (!subRes.ok) {
@@ -142,22 +147,117 @@ const DonateNow = () => {
         }
 
         const subJson = await subRes.json();
-        const subscriptionId = subJson.subscriptionId || subJson.subscription?.id;
+        subscriptionId = subJson.subscriptionId || subJson.subscription?.id;
         if (!subscriptionId) throw new Error('No subscription id returned from server');
+        
+        console.log('✅ Subscription created:', subscriptionId);
 
-        // Attach subscription id to Razorpay checkout options and remember it
-        options.subscription_id = subscriptionId;
-        setSubscriptionId(subscriptionId);
       } catch (err) {
         console.error('❌ Error creating subscription:', err);
         alert('❌ Could not create subscription: ' + err.message);
         return;
       }
-    }
+      
+      // Options for RECURRING
+      const options = {
+        key: "rzp_live_VmUHSwmTktjf2l", // Live Razorpay key
+        subscription_id: subscriptionId,
+        name: "Reiwametta Foundation",
+        description: "Monthly Recurring Donation",
+        image: "/logo.png",
+        handler: async function (response) {
+          alert("Monthly subscription successful! Payment ID: " + response.razorpay_payment_id);
+          
+          // Save to DB (Verification Data)
+          await savePaymentToDatabase({
+            ...formData, // name, email, etc.
+            isRecurring: true,
+            amount: amountNumber, // The plan's amount
+            paymentId: response.razorpay_payment_id,
+            subscriptionId: response.razorpay_subscription_id,
+            signature: response.razorpay_signature
+          });
+        },
+        prefill: {
+          name: formData.name,
+          email: formData.email,
+          contact: formData.contact,
+        },
+        theme: {
+          color: "#EAB308",
+        },
+      };
+      
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
 
-    const paymentObject = new window.Razorpay(options);
-    paymentObject.open();
+    } else {
+      // --- FLOW 2: ONE-TIME (ORDER) ---
+      // This will show the full custom amount (e.g., ₹500)
+      
+      let order;
+      try {
+        console.log('Creating one-time order for:', amountNumber);
+        const orderRes = await fetch(`${API_BASE}/create-order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: amountNumber }) // Send amount in Rupees
+        });
+
+        if (!orderRes.ok) {
+          const txt = await orderRes.text();
+          throw new Error(`Order creation failed: ${orderRes.status} ${txt}`);
+        }
+
+        order = await orderRes.json();
+        if (!order || !order.id) throw new Error('Invalid order data from server');
+        
+        console.log('✅ Order created:', order.id);
+
+      } catch (err) {
+        console.error('❌ Error creating order:', err);
+        alert('❌ Could not create one-time order: ' + err.message);
+        return;
+      }
+      
+      // Options for ONE-TIME
+      const options = {
+        key: "rzp_live_VmUHSwmTktjf2l", // Live Razorpay key
+        amount: order.amount, // Use amount from server (in paise)
+        currency: "INR",
+        name: "Reiwametta Foundation",
+        description: "One-Time Donation",
+        image: "/logo.png",
+        order_id: order.id, // Use the new order_id
+        handler: async function (response) {
+          alert("Donation successful! Payment ID: " + response.razorpay_payment_id);
+          
+          // Save to DB (Verification Data)
+          await savePaymentToDatabase({
+            ...formData, // name, email, etc.
+            isRecurring: false,
+            amount: order.amount / 100, // Convert back to Rupees
+            paymentId: response.razorpay_payment_id,
+            orderId: response.razorpay_order_id,
+            signature: response.razorpay_signature
+          });
+        },
+        prefill: {
+          name: formData.name,
+          email: formData.email,
+          contact: formData.contact,
+        },
+        theme: {
+          color: "#EAB308",
+        },
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
+    }
   };
+
+  // --- No changes below this line ---
 
   const handleAmountClick = (amount) => {
     setSelectedAmount(amount);
@@ -208,7 +308,7 @@ const DonateNow = () => {
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
-          placeholder="Enter amount (min ₹100)"
+          placeholder="Enter amount (min ₹10)"
           value={customAmount}
           onChange={handleCustomAmountChange}
           className="w-48 p-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-400 text-center text-lg font-semibold text-yellow-500 shadow-sm"
@@ -295,5 +395,5 @@ const DonateNow = () => {
     </div>
   );
 };
-
+  
 export default DonateNow;
