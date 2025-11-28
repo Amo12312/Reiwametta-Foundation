@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 const amountOptions = [100, 250, 500, 1000, 2000];
 
-const API_BASE = (import.meta.env.VITE_API_URL || 'https://reiwamettafoundations.org').replace(/\/$/, '');
+const API_BASE = (import.meta.env.VITE_API_URL || 'https://reiwametta-foundation.vercel.app').replace(/\/$/, '');
 
 const DonateNow = () => {
   const [selectedAmount, setSelectedAmount] = useState(null);
@@ -111,8 +111,8 @@ const DonateNow = () => {
   const handlePayment = async () => {
     // Enforce minimum amount
     const amountNumber = Number(selectedAmount);
-    if (!amountNumber || amountNumber < 10) {
-      alert('Minimum donation amount is ₹10.');
+    if (!amountNumber || amountNumber < 100) {
+      alert('Minimum donation amount is ₹100.');
       return;
     }
     console.log('💵 Initiating payment for amount:', amountNumber, 'Recurring:', autoPay);
@@ -308,7 +308,7 @@ const DonateNow = () => {
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
-          placeholder="Enter amount (min ₹10)"
+          placeholder="Enter amount (min ₹100)"
           value={customAmount}
           onChange={handleCustomAmountChange}
           className="w-48 p-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-400 text-center text-lg font-semibold text-yellow-500 shadow-sm"
