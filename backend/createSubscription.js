@@ -199,7 +199,7 @@ app.post('/create-order', async (req, res) => {
       return res.status(400).json({ error: 'Invalid amount' });
     }
 
-    const amountInPaise = Number(amount) * 10; // Convert to paise
+    const amountInPaise = Number(amount) * 100; // Convert to paise
     console.log(`Creating order for amount: ${amountInPaise} paise`);
 
     const options = {
