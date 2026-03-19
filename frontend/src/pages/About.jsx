@@ -509,7 +509,7 @@ const About = () => {
               OUR JOURNEY
             </h2>
             <h3 className="text-xl md:text-2xl font-bold text-gray-800">
-              "Reivametta Foundation: Bridging Educational Gaps, Empowering
+              "Bridging Educational Gaps, Empowering
               Communities, Transforming Futures"
             </h3>
             <p className="text-sm text-gray-600 leading-relaxed">
