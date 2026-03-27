@@ -1,4 +1,3 @@
-
 import Home from './pages/Home'
 import ScrollToTop from "./components/ScrollToTop";
 import Contribute from './pages/Contribute'
@@ -14,6 +13,8 @@ import EventSubPage from './pages/EventSubPage'
 import { Routes, Route } from 'react-router-dom'
 import DonateNow from './pages/DonateNow';
 
+// 1. Imported the new page here
+import FriendsOfSRCPage from './pages/Friendsofsrc';
 
 const App = () => {
   return (
@@ -34,6 +35,10 @@ const App = () => {
         <Route path="/donatenow" element={<DonateNow />} />
         <Route path="/donateNow" element={<DonateNow />} />
         <Route path="/donate-now" element={<DonateNow />} />
+        
+        {/* 2. Added the new route here */}
+        <Route path="/friendsofsrc" element={<FriendsOfSRCPage />} />
+        
         <Route path="*" element={<Home />} />
       </Routes>
       <Footer />

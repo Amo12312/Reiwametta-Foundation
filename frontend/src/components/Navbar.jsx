@@ -38,6 +38,7 @@ const Navbar = () => {
     { name: "Events", to: "/event" },
     { name: "Our Initiative", to: "/initiative" },
     { name: "Contribute", to: "/contribute" },
+    { name: "Friends of SRC", to: "/friendsofsrc" },
     // Removed "Donate Now" from mobile menu since it's now always visible
   ];
 
