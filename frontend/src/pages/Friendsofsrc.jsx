@@ -121,45 +121,6 @@ const styles = {
     width: '100%',
     height: 'auto',
   },
-  donateCard: {
-    border: '1px solid #ddd',
-    borderRadius: '8px',
-    padding: '40px',
-    textAlign: 'center',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  donateCardTitle: {
-    fontSize: '12px',
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    marginBottom: '15px',
-    letterSpacing: '0.5px',
-    color: '#333'
-  },
-  donateAmountContainer: {
-    display: 'flex',
-    alignItems: 'baseline',
-    gap: '5px',
-    marginBottom: '10px',
-    color: '#0135cf', 
-  },
-  donateValue: {
-    fontSize: '64px',
-    fontWeight: '700',
-  },
-  donateCurrency: {
-    fontSize: '36px',
-    fontWeight: '600',
-  },
-  donateCardType: {
-    fontSize: '11px',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    color: '#666'
-  },
   donateFooterText: {
     color: '#666',
     fontSize: '14px',
@@ -182,22 +143,27 @@ const styles = {
 };
 
 const FriendsOfSRCPage = () => {
-  // --- STATE ---
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
   // --- REFS ---
-  const subscriptionModalRef = useRef(null); 
+  const subscriptionContainerRef = useRef(null); 
+  const donateSectionRef = useRef(null);
+
+  // --- SCROLL HANDLER ---
+  const scrollToDonate = (e) => {
+    e.preventDefault();
+    if (donateSectionRef.current) {
+      donateSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   // --- EFFECT: LOAD MONTHLY SUBSCRIPTION WIDGET ---
   useEffect(() => {
-    const container = subscriptionModalRef.current;
+    const container = subscriptionContainerRef.current;
     
     // Check if container exists and doesn't already have the form
     if (container && !container.querySelector('form')) {
       const form = document.createElement('form');
       const script = document.createElement('script');
       script.src = "https://cdn.razorpay.com/static/widget/subscription-button.js";
-      // Used your provided subscription ID and theme
       script.setAttribute('data-subscription_button_id', 'pl_SVq8WcT4cNFI3m');
       script.setAttribute('data-button_theme', 'rzp-light-standard');
       script.async = true;
@@ -229,13 +195,6 @@ const FriendsOfSRCPage = () => {
           gap: 40px;
           margin: 40px 100px 0 100px;
         }
-        .donate-grid-container {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 30px;
-          margin-top: 60px;
-          margin-bottom: 60px;
-        }
         .center-align-text {
           text-align: center;
           display: flex;
@@ -251,59 +210,6 @@ const FriendsOfSRCPage = () => {
         .scroll-reveal.is-visible {
           opacity: 1;
           transform: translateY(0);
-        }
-        .donate-card-hover {
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
-          cursor: pointer;
-        }
-        .donate-card-hover:hover {
-          transform: translateY(-5px);
-          box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        }
-
-        /* Modal Styles */
-        .modal-overlay {
-          position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-          z-index: 9999;
-          display: flex; items-align: center; justify-content: center;
-          background-color: rgba(1, 53, 207, 0.7);
-          backdrop-filter: blur(4px);
-          opacity: 0; pointer-events: none;
-          transition: opacity 0.3s ease;
-        }
-        .modal-overlay.is-open {
-          opacity: 1; pointer-events: auto;
-        }
-        .modal-content {
-          background: #fff;
-          border-radius: 2rem;
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-          width: 100%; max-width: 400px;
-          position: relative;
-          display: flex; flex-direction: column;
-          max-height: 85vh;
-          transform: scale(0.95);
-          transition: transform 0.3s ease;
-          margin: auto; /* Fallback for flex centering */
-        }
-        .modal-overlay.is-open .modal-content {
-          transform: scale(1);
-        }
-        .modal-close-btn {
-          position: absolute; top: 1rem; right: 1rem;
-          z-index: 50;
-          background: #f3f4f6; color: #6b7280;
-          border: none; border-radius: 50%;
-          width: 2.5rem; height: 2.5rem;
-          display: flex; align-items: center; justify-content: center;
-          cursor: pointer; transition: all 0.2s;
-        }
-        .modal-close-btn:hover {
-          background: #e5e7eb; color: #ef4444;
-        }
-        .modal-body {
-          overflow-y: auto; padding: 2rem;
-          display: flex; flex-direction: column; align-items: center;
         }
 
         /* Mobile View Overrides: Stack elements and force everything to center */
@@ -334,9 +240,6 @@ const FriendsOfSRCPage = () => {
             margin: 40px 0 0 0;
             gap: 50px;
           }
-          .donate-grid-container {
-            grid-template-columns: 1fr;
-          }
           .center-align-text {
             align-items: stretch; 
           }
@@ -362,8 +265,8 @@ const FriendsOfSRCPage = () => {
               Join us with a monthly<br />
               Support
             </p>
-            {/* Swapped standard anchor for button, triggers modal */}
-            <button onClick={() => setIsModalOpen(true)} style={styles.button}>DONATE NOW</button>
+            {/* Triggers scroll down to donate section */}
+            <button onClick={scrollToDonate} style={styles.button}>DONATE NOW</button>
           </div>
         </FadeInSection>
       </section>
@@ -376,8 +279,8 @@ const FriendsOfSRCPage = () => {
             <p style={styles.paragraph}>
               The Savitribai Phule Resource Centre (SRC) was born from a burning need for equity. Named in honor of the trailblazing 19th-century advocate for women's rights and education, we are driven by Savitribai Phule’s enduring courage and compassion. We don't just provide resources; we create safe, inclusive spaces where individuals from marginalized backgrounds are empowered to unlock their full, untapped potential.
             </p>
-            {/* Triggers modal */}
-            <button onClick={() => setIsModalOpen(true)} style={{...styles.button, ...styles.smallButton}}>Become a Monthly Supporter</button>
+            {/* Triggers scroll down to donate section */}
+            <button onClick={scrollToDonate} style={{...styles.button, ...styles.smallButton}}>Become a Monthly Supporter</button>
           </div>
           <div className="responsive-column" style={{ display: 'flex', justifyContent: 'center' }}>
             <img 
@@ -450,42 +353,18 @@ const FriendsOfSRCPage = () => {
         </FadeInSection>
       </section>
 
-      {/* 5. Donate Tiers Section */}
-      <section style={{ display: 'block', padding: '100px 20px' }}>
+      {/* 5. Donate Section (Modified to embed directly and assigned ref) */}
+      <section ref={donateSectionRef} style={{ display: 'block', padding: '100px 20px' }}>
         <FadeInSection>
           <div className="center-align-text">
             <h2 style={{...styles.title, textAlign: 'center'}}>Choose Your Impact as a<br />Friend of SRC</h2>
           </div>
 
-          <div className="donate-grid-container" style={{ maxWidth: '1000px', margin: '60px auto' }}>
-            {/* Card 250 - Triggers modal */}
-            <div className="donate-card-hover" style={styles.donateCard} onClick={() => setIsModalOpen(true)}>
-              <div style={styles.donateCardTitle}>DONATE</div>
-              <div style={styles.donateAmountContainer}>
-                <span style={styles.donateValue}>250</span>
-                <span style={styles.donateCurrency}>₹</span>
-              </div>
-              <div style={styles.donateCardType}>MONTHLY</div>
-            </div>
-            {/* Card 500 - Triggers modal */}
-            <div className="donate-card-hover" style={styles.donateCard} onClick={() => setIsModalOpen(true)}>
-              <div style={styles.donateCardTitle}>DONATE</div>
-              <div style={styles.donateAmountContainer}>
-                <span style={styles.donateValue}>500</span>
-                <span style={styles.donateCurrency}>₹</span>
-              </div>
-              <div style={styles.donateCardType}>MONTHLY</div>
-            </div>
-            {/* Card 1000 - Triggers modal */}
-            <div className="donate-card-hover" style={styles.donateCard} onClick={() => setIsModalOpen(true)}>
-              <div style={styles.donateCardTitle}>DONATE</div>
-              <div style={styles.donateAmountContainer}>
-                <span style={styles.donateValue}>1000</span>
-                <span style={styles.donateCurrency}>₹</span>
-              </div>
-              <div style={styles.donateCardType}>MONTHLY</div>
-            </div>
-          </div>
+          {/* Razorpay Subscription Widget Container directly inside the page */}
+          <div 
+            ref={subscriptionContainerRef} 
+            style={{ width: '100%', display: 'flex', justifyContent: 'center', minHeight: '100px', margin: '40px auto' }}
+          ></div>
 
           <div className="center-align-text" style={{ maxWidth: '700px', margin: '0 auto' }}>
             {/* Custom Amount Button configured with Razorpay Link */}
@@ -521,7 +400,6 @@ const FriendsOfSRCPage = () => {
               Ready to stand with us? Fill out the form below to become an official SRC Volunteer.
             </p>
             
-            {/* UPDATED: Google Form link added here */}
             <a 
               href="https://forms.gle/udnMdo3QNpLq1Nyz8" 
               target="_blank" 
@@ -541,35 +419,6 @@ const FriendsOfSRCPage = () => {
           </div>
         </FadeInSection>
       </section>
-
-      {/* --- SUBSCRIPTION MODAL --- */}
-      <div className={`modal-overlay ${isModalOpen ? 'is-open' : ''}`}>
-        <div className="modal-content">
-          <button 
-            onClick={() => setIsModalOpen(false)} 
-            className="modal-close-btn"
-            aria-label="Close modal"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-
-          <div className="modal-body">
-            <h3 style={{...styles.title, fontSize: '24px', textTransform: 'uppercase', marginBottom: '10px'}}>Support Us</h3>
-            
-            {/* Razorpay Subscription Widget Container */}
-            <div ref={subscriptionModalRef} style={{ width: '100%', display: 'flex', justifyContent: 'center', minHeight: '300px' }}></div>
-            
-            <button 
-              onClick={() => setIsModalOpen(false)} 
-              style={{ background: 'none', border: 'none', color: '#9ca3af', textDecoration: 'underline', fontSize: '12px', marginTop: '20px', cursor: 'pointer' }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
 
     </div>
   );
